@@ -109,7 +109,7 @@ class ChromaVectorStore:
             filter_dict: Optional[Dict[str, Any]] = None,
             top_k: int = 5,
             include_embeddings: bool = False
-    ) -> Tuple[List[str], List[Dict[str, Any]], Optional[List[List[float]]], List[float]]:
+    ) -> tuple[list[str], list[dict[str, Any]], Optional[list[list[float]]], list[float]]:
         """Search for similar documents using a query embedding.
 
         Args:
@@ -132,14 +132,20 @@ class ChromaVectorStore:
             if filter_dict:
                 query_params["where"] = filter_dict
 
-            # Add embeddings flag
+            # Add includes based on what's needed
+            includes = ["documents", "metadatas", "distances"]
             if include_embeddings:
-                query_params["include"] = ["documents", "metadatas", "embeddings", "distances"]
-            else:
-                query_params["include"] = ["documents", "metadatas", "distances"]
+                includes.append("embeddings")
+
+            query_params["include"] = includes
 
             # Execute query
             results = self.collection.query(**query_params)
+
+            # Handle case when no results are found
+            if not results["documents"] or len(results["documents"]) == 0 or len(results["documents"][0]) == 0:
+                logger.warning("No documents found in similarity search")
+                return [], [], None, []
 
             # Extract results
             texts = results["documents"][0]
@@ -155,7 +161,7 @@ class ChromaVectorStore:
 
         except Exception as e:
             logger.error(f"Error during similarity search: {str(e)}")
-            raise
+            return [], [], None, []
 
     def keyword_search(
             self,
@@ -199,7 +205,7 @@ class ChromaVectorStore:
             logger.error(f"Error during keyword search: {str(e)}")
             raise
 
-    def get_document_by_id(self, doc_id: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    def get_document_by_id(self, doc_id: str) -> Optional[tuple[Optional[str], Optional[dict[str, Any]]]]:
         """Retrieve a document by its ID.
 
         Args:
@@ -211,8 +217,8 @@ class ChromaVectorStore:
         try:
             result = self.collection.get(ids=[doc_id], include=["documents", "metadatas"])
 
-            if not result["ids"]:
-                return None, None
+            if not result["documents"]:
+                return None
 
             return result["documents"][0], result["metadatas"][0]
 

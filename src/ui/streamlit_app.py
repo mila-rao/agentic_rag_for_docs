@@ -4,8 +4,8 @@ import time
 from pathlib import Path
 import logging
 
-from utils.helpers import load_environment, get_embedding_function
-
+from utils.helpers import load_environment
+from utils.embeddings_helper import get_embedding_function, fallback_embedding_function
 from document_processing.processor import DocumentProcessor
 from vector_store.chroma_store import ChromaVectorStore
 from retrieval.hybrid import HybridRetriever
@@ -13,7 +13,6 @@ from agents.crew import RAGCrew
 
 load_environment()
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -37,14 +36,18 @@ if "processing_docs" not in st.session_state:
 # Helper functions
 def get_embedding_function_for_app():
     """Get the embedding function for the app."""
-    from utils.helpers import get_embedding_function
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         st.error("OpenAI API key not found. Please set it in your .env file.")
         st.stop()
 
-    return get_embedding_function(api_key)
+    try:
+        return get_embedding_function(api_key, max_retries=3)
+    except Exception as e:
+        st.error(f"Error initializing embedding function: {str(e)}")
+        st.warning("Using fallback embedding function. Search results will not be optimal.")
+        return fallback_embedding_function
 
 
 def initialize_components():
@@ -83,7 +86,7 @@ def initialize_components():
     rag_crew = RAGCrew(
         retriever=retriever,
         llm_api_key=api_key,
-        model_name=os.environ.get("MODEL_NAME"),
+        model_name="o3-mini",
         verbose=False
     )
 

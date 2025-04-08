@@ -58,23 +58,33 @@ class HybridRetriever:
             logger.warning("No documents in vector store to build BM25 index")
             return
 
-        # Use collection's native get method to retrieve all documents
-        # This is more efficient than multiple queries
-        results = self.vector_store.collection.get(
-            include=["documents", "metadatas", "ids"]
-        )
+        try:
+            # Use collection's native get method to retrieve all documents
+            # This is more efficient than multiple queries
+            results = self.vector_store.collection.get(
+                include=["documents", "metadatas"]
+            )
 
-        self.corpus = results["documents"]
-        self.doc_ids = results["ids"]
+            # Get document IDs from the results
+            self.doc_ids = results.get("ids", [])
 
-        # Tokenize the corpus for BM25
-        tokenized_corpus = [self._tokenize(doc) for doc in self.corpus]
+            # If IDs weren't included, generate some
+            if not self.doc_ids:
+                self.doc_ids = [f"doc_{i}" for i in range(len(results.get("documents", [])))]
 
-        # Initialize BM25
-        self.bm25 = BM25Okapi(tokenized_corpus)
-        self.bm25_initialized = True
+            self.corpus = results.get("documents", [])
 
-        logger.info(f"BM25 index initialized with {len(self.corpus)} documents")
+            # Tokenize the corpus for BM25
+            tokenized_corpus = [self._tokenize(doc) for doc in self.corpus if doc]
+
+            # Initialize BM25
+            self.bm25 = BM25Okapi(tokenized_corpus)
+            self.bm25_initialized = True
+
+            logger.info(f"BM25 index initialized with {len(self.corpus)} documents")
+        except Exception as e:
+            logger.error(f"Error initializing BM25 index: {str(e)}")
+            self.bm25_initialized = False
 
     def _tokenize(self, text: str) -> List[str]:
         """Simple tokenization function for BM25.
