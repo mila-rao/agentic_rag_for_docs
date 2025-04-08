@@ -33,7 +33,8 @@ dependencies = [
     "pytest>=7.4.3",
     "torch==2.1.0",
     "numpy<2",
-    "pi-heif>=0.20.0",
+    "pi-heif>0.20.0",
+    "pymupdf>1.23.3",
     "torchvision==0.16.0"
 ]
 

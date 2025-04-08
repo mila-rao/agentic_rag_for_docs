@@ -5,6 +5,7 @@ import logging
 
 from unstructured.partition.auto import partition
 from document_processing.chunking import ChonkieChunker
+from document_processing.pdf_processor import process_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,9 @@ class DocumentProcessor:
             # Handle tabular data separately
             from document_processing.tabular import process_tabular_file
             chunks, metadata_list = process_tabular_file(file_path, base_metadata)
+        elif file_ext == '.pdf':
+            # Use our custom PDF processor that doesn't require Poppler
+            chunks, metadata_list = process_pdf(file_path, base_metadata)
         else:
             # Use Unstructured for all other document types
             try:
