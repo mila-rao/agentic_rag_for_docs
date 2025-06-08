@@ -18,7 +18,7 @@ class RAGCrew:
             retriever: HybridRetriever,
             llm_api_key: str,
             model_name: str = "openai/o3-mini",
-            verbose: bool = False
+            verbose: bool = True
     ):
         """Initialize the RAG Crew.
 
@@ -139,8 +139,7 @@ class RAGCrew:
             5. Ensure diversity of sources
             6. Judge the relevance and quality of each retrieved chunk
 
-            Use the following function to retrieve information:
-            self.retrieve_documents(query, filters, top_k)
+            Use the search_documents tool to retrieve information.
 
             Output the retrieved information with relevance assessments.
             """,
@@ -238,72 +237,99 @@ class RAGCrew:
         # Set up the agents and tasks
         agents, tasks = self.setup_agents()
 
-        # Create the crew
-        crew = Crew(
-            agents=agents,
-            tasks=tasks,
-            verbose=self.verbose,
-            process=Process.sequential  # Use sequential processing for RAG tasks
-        )
-
-        # Prepare task inputs
+        # Prepare task inputs and tools
         inputs = {
             "query": query,
             "filter_dict": json.dumps(filter_dict) if filter_dict else "{}"
         }
 
-        # Add retrieval method to the retriever agent
-        setattr(agents[1], "retrieve_documents", self._agent_retrieve_documents)
-
-        # Execute the crew
-        result = crew.kickoff(inputs=inputs)
-
-        # Process final result
+        # Create the crew
         try:
+            # Instead of attaching retrieve_documents directly to the agent,
+            # we'll provide it as a tool through CrewAI's tools mechanism
+            # Create a search tool that the agents can use
+            search_tool = Tool(
+                name="search_documents",
+                description="Search for documents relevant to a query",
+                func=self._agent_retrieve_documents
+            )
+
+            # Assign the tool to the retriever agent
+            if hasattr(agents[1], "tools"):
+                # New version of CrewAI uses tools list
+                agents[1].tools = [search_tool]
+            else:
+                # Older versions might use a different mechanism
+                try:
+                    agents[1].add_tool(search_tool)
+                except AttributeError:
+                    logger.warning("Could not add search tool to agent - CrewAI API may have changed")
+                    # Fall back to a different approach if needed
+
+            # Create the crew
+            crew = Crew(
+                agents=agents,
+                tasks=tasks,
+                verbose=self.verbose,
+                process=Process.sequential  # Use sequential processing for RAG tasks
+            )
+
+            # Execute the crew
+            result = crew.kickoff(inputs=inputs)
+
+            # Process final result
             final_output = self._process_crew_result(result, query)
             return final_output
+
         except Exception as e:
-            logger.error(f"Error processing crew result: {str(e)}")
+            logger.error(f"Error processing query: {str(e)}", exc_info=True)
             return {
                 "answer": f"Error processing your query: {str(e)}",
                 "sources": [],
                 "success": False
             }
 
-    def _agent_retrieve_documents(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: int = 5) -> str:
-        """Document retrieval method for agents to use.
+    def _agent_retrieve_documents(self, query: str, filters: Optional[str] = None, top_k: int = 5) -> str:
+        """Document retrieval method for agents to use as a tool.
 
         Args:
             query: The search query
-            filters: Optional metadata filters
+            filters: Optional metadata filters as JSON string
             top_k: Number of results to return
 
         Returns:
             JSON string of retrieved documents
         """
-        # Parse filters if provided as string
-        if isinstance(filters, str):
-            try:
-                filters = json.loads(filters)
-            except:
-                filters = None
+        try:
+            # Parse filters if provided as string
+            filter_dict = None
+            if filters and isinstance(filters, str):
+                try:
+                    filter_dict = json.loads(filters)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid filter JSON: {filters}")
 
-        # Retrieve documents
-        texts, metadatas, scores = self.retriever.retrieve(query, filters, top_k)
+            # Retrieve documents
+            texts, metadatas, scores = self.retriever.retrieve(query, filter_dict, top_k)
 
-        # Format results
-        results = []
-        for text, metadata, score in zip(texts, metadatas, scores):
-            result = {
-                "text": text,
-                "source": metadata.get("source", "Unknown"),
-                "score": float(score),
-                "metadata": metadata
-            }
-            results.append(result)
+            # Format results
+            results = []
+            for text, metadata, score in zip(texts, metadatas, scores):
+                result = {
+                    "text": text,
+                    "source": metadata.get("source", "Unknown"),
+                    "score": float(score),
+                    "metadata": metadata
+                }
+                results.append(result)
 
-        # Return as JSON string
-        return json.dumps({"results": results})
+            # Return as JSON string
+            return json.dumps({"results": results})
+
+        except Exception as e:
+            logger.error(f"Error in agent retrieve documents: {str(e)}")
+            # Return empty results instead of failing
+            return json.dumps({"results": [], "error": str(e)})
 
     def _process_keyword_search(self, query: str, filter_dict: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Process a simple keyword search query.
