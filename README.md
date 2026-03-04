@@ -73,7 +73,7 @@ The system consists of the following components:
 To process a directory of documents and add them to the knowledge base:
 
 ```bash
-python main.py process path/to/your/documents
+python src/main.py process path/to/your/documents
 ```
 
 ### Running the UI
@@ -81,7 +81,7 @@ python main.py process path/to/your/documents
 To start the Streamlit UI:
 
 ```bash
-python main.py ui
+python src/main.py ui
 ```
 
 Then open your browser to `http://localhost:8501`
@@ -91,16 +91,15 @@ Then open your browser to `http://localhost:8501`
 To test the retrieval system directly from the command line:
 
 ```bash
-python main.py test "your search query" --top-k 5
+python src/main.py test "your search query" --top-k 5
 ```
 
 ## Example Workflow
 
 1. Start the application UI:
    ```bash
-   python main.py ui
+   python src/main.py ui
    ```
-
 2. Upload documents using the sidebar upload interface
 
 3. Use the search bar to:

@@ -1,11 +1,11 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 import logging
 import json
-from crewai import Agent, Task, Crew, Process
+from crewai import Agent, Task, Crew, Process, LLM
+from crewai.tools import tool
 from crewai.tasks.task_output import TaskOutput
 
 from retrieval.hybrid import HybridRetriever
-from crewai import LLM
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +42,31 @@ class RAGCrew:
 
         logger.info(f"Initialized RAG Crew with model: {model_name}")
 
+    def _create_search_tool(self):
+        """Creates a tool instance that allows agents to access the retriever."""
+        
+        @tool("search_documents")
+        def search_documents(query: str, filters: Optional[str] = None, top_k: int = 5) -> str:
+            """
+            Search for documents relevant to a query.
+            Args:
+                query: The search query string.
+                filters: Optional metadata filters as a JSON string.
+                top_k: Number of results to return.
+            """
+            return self._agent_retrieve_documents(query, filters, top_k)
+        
+        return search_documents
+
     def setup_agents(self):
         """Create and configure the agent crew.
 
         Returns:
             Tuple of (agents, tasks)
         """
+        # Create the tool instance
+        search_tool = self._create_search_tool()
+
         # 1. Query Planner Agent
         planner = Agent(
             role="Query Planner",
@@ -67,6 +86,7 @@ class RAGCrew:
             backstory="""You are a master at finding information. You know how to craft
             effective search queries and can judge the relevance of retrieved documents.
             You're thorough and always look for multiple perspectives on a topic.""",
+            tools=[search_tool],
             verbose=self.verbose,
             llm=self.llm,
             allow_delegation=True
@@ -107,6 +127,9 @@ class RAGCrew:
             2. Identify key concepts, entities, and relationships
             3. Break down complex questions into sub-questions if needed
             4. Suggest relevant filters or constraints (e.g., date ranges, document types)
+
+            User Query: {query}
+            Metadata Filters: {filter_dict}
 
             Output your analysis as a structured plan including:
             - Query type (keyword/question)
@@ -230,14 +253,14 @@ class RAGCrew:
             Dict containing the final response and supporting information
         """
         # Fast path for simple keyword searches
-        if len(query.split()) <= 3 and self.retriever.is_keyword_search(query):
+        if len(query.split()) <= 3 and hasattr(self.retriever, 'is_keyword_search') and self.retriever.is_keyword_search(query):
             logger.info(f"Using fast path for keyword search: {query}")
             return self._process_keyword_search(query, filter_dict)
 
         # Set up the agents and tasks
         agents, tasks = self.setup_agents()
 
-        # Prepare task inputs and tools
+        # Prepare task inputs
         inputs = {
             "query": query,
             "filter_dict": json.dumps(filter_dict) if filter_dict else "{}"
@@ -245,41 +268,18 @@ class RAGCrew:
 
         # Create the crew
         try:
-            # Instead of attaching retrieve_documents directly to the agent,
-            # we'll provide it as a tool through CrewAI's tools mechanism
-            # Create a search tool that the agents can use
-            search_tool = Tool(
-                name="search_documents",
-                description="Search for documents relevant to a query",
-                func=self._agent_retrieve_documents
-            )
-
-            # Assign the tool to the retriever agent
-            if hasattr(agents[1], "tools"):
-                # New version of CrewAI uses tools list
-                agents[1].tools = [search_tool]
-            else:
-                # Older versions might use a different mechanism
-                try:
-                    agents[1].add_tool(search_tool)
-                except AttributeError:
-                    logger.warning("Could not add search tool to agent - CrewAI API may have changed")
-                    # Fall back to a different approach if needed
-
-            # Create the crew
             crew = Crew(
                 agents=agents,
                 tasks=tasks,
                 verbose=self.verbose,
-                process=Process.sequential  # Use sequential processing for RAG tasks
+                process=Process.sequential
             )
 
             # Execute the crew
             result = crew.kickoff(inputs=inputs)
 
             # Process final result
-            final_output = self._process_crew_result(result, query)
-            return final_output
+            return self._process_crew_result(result, query)
 
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}", exc_info=True)
@@ -323,12 +323,10 @@ class RAGCrew:
                 }
                 results.append(result)
 
-            # Return as JSON string
             return json.dumps({"results": results})
 
         except Exception as e:
             logger.error(f"Error in agent retrieve documents: {str(e)}")
-            # Return empty results instead of failing
             return json.dumps({"results": [], "error": str(e)})
 
     def _process_keyword_search(self, query: str, filter_dict: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -349,7 +347,6 @@ class RAGCrew:
             force_mode="keyword"
         )
 
-        # Format results
         results = []
         for text, metadata, score in zip(texts, metadatas, scores):
             result = {
@@ -380,31 +377,28 @@ class RAGCrew:
         # Extract the final critic's output
         final_output = result.raw
 
-        # Try to parse as JSON if possible
         try:
-            output_dict = json.loads(final_output)
+            # Clean possible markdown formatting
+            clean_output = final_output.strip().replace("```json", "").replace("```", "")
+            output_dict = json.loads(clean_output)
 
-            # Extract the final answer and sources
             final_answer = output_dict.get("final_answer", "")
             sources = output_dict.get("sources", [])
 
             if not final_answer and "critique" in output_dict:
-                # Check if answer is nested in critique structure
                 final_answer = output_dict.get("critique", {}).get("final_answer", "")
 
             return {
                 "type": "question_answer",
                 "query": query,
-                "answer": final_answer,
+                "answer": final_answer if final_answer else final_output,
                 "sources": sources,
                 "full_critique": output_dict.get("critique", {}),
                 "success": True
             }
 
         except json.JSONDecodeError:
-            # If not valid JSON, return the raw text
             logger.warning("Failed to parse crew result as JSON")
-
             return {
                 "type": "question_answer",
                 "query": query,

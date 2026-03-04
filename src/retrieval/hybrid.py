@@ -217,6 +217,11 @@ class HybridRetriever:
 
         # 2. Semantic search with embeddings
         query_embedding = self.embedding_function(query)
+        if isinstance(query_embedding, list) and len(query_embedding) > 0:
+            if isinstance(query_embedding[0], list):
+                query_embedding = query_embedding[0]
+            elif hasattr(query_embedding[0], "__len__") and not isinstance(query_embedding[0], (int, float)):
+                query_embedding = list(query_embedding[0])
 
         # Search vector store
         sem_texts, sem_metadatas, _, sem_scores = self.vector_store.similarity_search(
