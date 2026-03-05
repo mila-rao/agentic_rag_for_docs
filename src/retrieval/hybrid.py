@@ -135,6 +135,27 @@ class HybridRetriever:
         # Default to keyword search
         return True
 
+    def _compute_rrf_score(self, bm25_rank: Optional[int], semantic_rank: Optional[int], k: int = 60) -> float:
+        """Compute Reciprocal Rank Fusion score.
+
+        RRF combines rankings from multiple retrievers using the formula:
+        RRF(d) = sum(1 / (k + rank_i(d))) for each retriever i
+
+        Args:
+            bm25_rank: Rank in BM25 results (1-indexed), or None if not present
+            semantic_rank: Rank in semantic results (1-indexed), or None if not present
+            k: Constant to prevent high scores for top ranks (default 60)
+
+        Returns:
+            RRF score (higher is better)
+        """
+        score = 0.0
+        if bm25_rank is not None:
+            score += 1.0 / (k + bm25_rank)
+        if semantic_rank is not None:
+            score += 1.0 / (k + semantic_rank)
+        return score
+
     def retrieve(
             self,
             query: str,
@@ -142,13 +163,13 @@ class HybridRetriever:
             top_k: int = 5,
             force_mode: Optional[str] = None
     ) -> Tuple[List[str], List[Dict[str, Any]], List[float]]:
-        """Retrieve documents using hybrid search.
+        """Retrieve documents using hybrid search with Reciprocal Rank Fusion.
 
         Args:
             query: The user's query
             filter_dict: Optional metadata filter
             top_k: Number of results to return
-            force_mode: Force "keyword" or "semantic" mode, or None for automatic
+            force_mode: Force "keyword" or "semantic" mode, or None for hybrid
 
         Returns:
             Tuple of (texts, metadatas, scores)
@@ -156,124 +177,126 @@ class HybridRetriever:
         # Determine search mode
         if force_mode is not None:
             is_keyword = (force_mode.lower() == "keyword")
+            is_semantic = (force_mode.lower() == "semantic")
         else:
-            is_keyword = self.is_keyword_search(query)
+            is_keyword = False
+            is_semantic = False
 
-        # Adjust weights based on query type
         if is_keyword:
-            kw_weight = 0.7  # Higher weight for keyword search
-            sem_weight = 0.3
-            logger.info(f"Query interpreted as keyword search: '{query}'")
+            logger.info(f"Forced keyword-only search: '{query}'")
+        elif is_semantic:
+            logger.info(f"Forced semantic-only search: '{query}'")
         else:
-            kw_weight = 0.3  # Higher weight for semantic search
-            sem_weight = 0.7
-            logger.info(f"Query interpreted as semantic question: '{query}'")
+            logger.info(f"Hybrid search with RRF: '{query}'")
 
-        # Get expanded top_k to ensure we have enough candidates for reranking
-        expanded_k = min(top_k * 3, 30)  # Get more candidates but cap it
+        # Get more candidates for fusion (RRF works better with larger candidate pools)
+        expanded_k = min(top_k * 5, 50)
 
         # Initialize BM25 if needed
         if not self.bm25_initialized:
             self.initialize_bm25_index()
 
-        # Combined retrieval
-        results_dict = {}  # Will store combined results
+        # Results dictionary keyed by doc_id
+        results_dict = {}  # {doc_id: {text, metadata, bm25_rank, semantic_rank}}
 
-        # 1. Keyword search with BM25
-        tokenized_query = self._tokenize(query)
-        if tokenized_query and self.bm25:
-            bm25_scores = self.bm25.get_scores(tokenized_query)
+        # 1. BM25 keyword search (skip if forced semantic-only)
+        if not is_semantic:
+            tokenized_query = self._tokenize(query)
+            if tokenized_query and self.bm25:
+                bm25_scores = self.bm25.get_scores(tokenized_query)
 
-            # Get top results
-            top_indices = np.argsort(bm25_scores)[-expanded_k:][::-1]
+                # Get indices sorted by score (descending)
+                sorted_indices = np.argsort(bm25_scores)[::-1]
 
-            # Add to results dictionary with normalized scores
-            max_bm25 = max(bm25_scores[top_indices]) if len(top_indices) > 0 else 1.0
-            for idx in top_indices:
-                if bm25_scores[idx] > 0:  # Only include matches
+                # Assign ranks (1-indexed) to documents with positive scores
+                rank = 1
+                for idx in sorted_indices:
+                    if rank > expanded_k:
+                        break
+                    if bm25_scores[idx] <= 0:
+                        continue
+
                     doc_id = self.doc_ids[idx]
                     doc_text = self.corpus[idx]
 
                     # Get metadata from vector store
                     _, metadata = self.vector_store.get_document_by_id(doc_id)
+                    if metadata is None:
+                        metadata = {}
 
                     # Apply metadata filter if specified
                     if filter_dict and not self._matches_filter(metadata, filter_dict):
                         continue
 
-                    # Normalize score to 0-1 range
-                    normalized_score = bm25_scores[idx] / max_bm25
-
-                    # Store in results with source information
+                    # Store with BM25 rank
                     if doc_id not in results_dict:
                         results_dict[doc_id] = {
                             "text": doc_text,
                             "metadata": metadata,
-                            "keyword_score": normalized_score,
-                            "semantic_score": 0.0
+                            "bm25_rank": rank,
+                            "semantic_rank": None
                         }
                     else:
-                        results_dict[doc_id]["keyword_score"] = normalized_score
+                        results_dict[doc_id]["bm25_rank"] = rank
 
-        # 2. Semantic search with embeddings
-        query_embedding = self.embedding_function(query)
-        if isinstance(query_embedding, list) and len(query_embedding) > 0:
-            if isinstance(query_embedding[0], list):
-                query_embedding = query_embedding[0]
-            elif hasattr(query_embedding[0], "__len__") and not isinstance(query_embedding[0], (int, float)):
-                query_embedding = list(query_embedding[0])
+                    rank += 1
 
-        # Search vector store
-        sem_texts, sem_metadatas, _, sem_scores = self.vector_store.similarity_search(
-            query_embedding=query_embedding,
-            filter_dict=filter_dict,
-            top_k=expanded_k
-        )
+        # 2. Semantic search with embeddings (skip if forced keyword-only)
+        if not is_keyword:
+            query_embedding = self.embedding_function(query)
+            # Handle nested list from embedding function
+            if isinstance(query_embedding, list) and len(query_embedding) > 0:
+                if isinstance(query_embedding[0], list):
+                    query_embedding = query_embedding[0]
+                elif hasattr(query_embedding[0], "__len__") and not isinstance(query_embedding[0], (int, float)):
+                    query_embedding = list(query_embedding[0])
 
-        # Normalize semantic scores (convert distances to similarities)
-        max_sem_dist = max(sem_scores) if sem_scores else 1.0
-        sem_similarities = [1.0 - (dist / max_sem_dist) for dist in sem_scores]
-
-        # Add semantic results
-        for i, (text, metadata, score) in enumerate(zip(sem_texts, sem_metadatas, sem_similarities)):
-            doc_id = metadata.get("id", f"sem_{i}")
-
-            if doc_id not in results_dict:
-                results_dict[doc_id] = {
-                    "text": text,
-                    "metadata": metadata,
-                    "keyword_score": 0.0,
-                    "semantic_score": score
-                }
-            else:
-                results_dict[doc_id]["semantic_score"] = score
-
-        # 3. Combine scores
-        for doc_id, result in results_dict.items():
-            # Combined score with weightings
-            result["combined_score"] = (
-                    (kw_weight * result["keyword_score"]) +
-                    (sem_weight * result["semantic_score"])
+            # Search vector store
+            sem_texts, sem_metadatas, _, sem_distances = self.vector_store.similarity_search(
+                query_embedding=query_embedding,
+                filter_dict=filter_dict,
+                top_k=expanded_k
             )
 
-        # Sort by combined score
+            # Assign ranks (1-indexed) - results already sorted by distance
+            for rank, (text, metadata, distance) in enumerate(zip(sem_texts, sem_metadatas, sem_distances), start=1):
+                # Try to get a consistent doc_id from metadata
+                doc_id = metadata.get("id")
+                if doc_id is None:
+                    # Fallback: create ID from source + chunk_id if available
+                    source = metadata.get("source", "")
+                    chunk_id = metadata.get("chunk_id", rank)
+                    doc_id = f"{source}_{chunk_id}"
+
+                if doc_id not in results_dict:
+                    results_dict[doc_id] = {
+                        "text": text,
+                        "metadata": metadata,
+                        "bm25_rank": None,
+                        "semantic_rank": rank
+                    }
+                else:
+                    results_dict[doc_id]["semantic_rank"] = rank
+
+        # 3. Compute RRF scores
+        for doc_id, result in results_dict.items():
+            result["rrf_score"] = self._compute_rrf_score(
+                bm25_rank=result["bm25_rank"],
+                semantic_rank=result["semantic_rank"]
+            )
+
+        # Sort by RRF score (descending)
         sorted_results = sorted(
             results_dict.values(),
-            key=lambda x: x["combined_score"],
+            key=lambda x: x["rrf_score"],
             reverse=True
         )
 
         # 4. Apply reranker if available
         if self.reranker_function and sorted_results:
-            # Prepare inputs for reranker
             rerank_candidates = [r["text"] for r in sorted_results[:expanded_k]]
-
-            # Get reranked indices
             reranked_indices = self.reranker_function(query, rerank_candidates)
-
-            # Reorder results
-            reranked_results = [sorted_results[i] for i in reranked_indices]
-            sorted_results = reranked_results
+            sorted_results = [sorted_results[i] for i in reranked_indices]
 
         # Limit to top_k
         final_results = sorted_results[:top_k]
@@ -281,9 +304,9 @@ class HybridRetriever:
         # Format return values
         texts = [r["text"] for r in final_results]
         metadatas = [r["metadata"] for r in final_results]
-        scores = [r["combined_score"] for r in final_results]
+        scores = [r["rrf_score"] for r in final_results]
 
-        logger.info(f"Hybrid retrieval returned {len(texts)} results")
+        logger.info(f"Hybrid retrieval (RRF) returned {len(texts)} results")
 
         return texts, metadatas, scores
 

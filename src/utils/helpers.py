@@ -8,6 +8,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 import openai
 
+from config.config import OPENAI_SETTINGS, EMBEDDING_SETTINGS
+
 logger = logging.getLogger(__name__)
 
 
@@ -122,11 +124,11 @@ def load_jsonl(file_path: str) -> List[Dict[str, Any]]:
 def get_embedding_function(api_key: Optional[str] = None):
     """Get OpenAI embedding function."""
 
-    api_key = api_key or os.getenv('OPENAI_API_KEY')
+    api_key = api_key or OPENAI_SETTINGS["api_key"]
     if not api_key:
-        raise ValueError("OpenAI API key is required")
+        raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY in .env file.")
 
-    embedding_model = os.getenv('EMBEDDING_MODEL', 'text-embedding-3-small')
+    embedding_model = OPENAI_SETTINGS["embedding_model"]
 
     client = openai.OpenAI(api_key=api_key)
 
@@ -144,6 +146,6 @@ def get_embedding_function(api_key: Optional[str] = None):
         except Exception as e:
             logger.error(f"Error generating embeddings: {str(e)}")
             # Return zero embeddings as fallback
-            return [[0.0] * 1536 for _ in texts]
+            return [[0.0] * EMBEDDING_SETTINGS["dimensions"] for _ in texts]
 
     return embedding_function

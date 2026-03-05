@@ -6,6 +6,7 @@ from crewai.tools import tool
 from crewai.tasks.task_output import TaskOutput
 
 from retrieval.hybrid import HybridRetriever
+from config.config import OPENAI_SETTINGS
 
 logger = logging.getLogger(__name__)
 
@@ -16,31 +17,35 @@ class RAGCrew:
     def __init__(
             self,
             retriever: HybridRetriever,
-            llm_api_key: str,
-            model_name: str = "openai/o3-mini",
+            llm_api_key: Optional[str] = None,
+            model_name: Optional[str] = None,
             verbose: bool = True
     ):
         """Initialize the RAG Crew.
 
         Args:
             retriever: HybridRetriever instance for document retrieval
-            llm_api_key: OpenAI API key for the LLM
-            model_name: Model name to use (default: o3-mini)
+            llm_api_key: OpenAI API key (defaults to OPENAI_SETTINGS)
+            model_name: Model name (defaults to OPENAI_SETTINGS)
             verbose: Whether to enable verbose logging
         """
         self.retriever = retriever
-        self.llm_api_key = llm_api_key
-        self.model_name = model_name
+        self.llm_api_key = llm_api_key or OPENAI_SETTINGS["api_key"]
+        self.model_name = model_name or OPENAI_SETTINGS["chat_model"]
         self.verbose = verbose
 
         # Initialize the LLM
-        self.llm = LLM(
-            api_key=llm_api_key,
-            temperature=0.2,
-            model=model_name
-        )
+        # Build kwargs conditionally - some models (o1, o3) don't support temperature
+        llm_kwargs = {
+            "api_key": self.llm_api_key,
+            "model": self.model_name
+        }
+        if OPENAI_SETTINGS["temperature"] is not None:
+            llm_kwargs["temperature"] = OPENAI_SETTINGS["temperature"]
 
-        logger.info(f"Initialized RAG Crew with model: {model_name}")
+        self.llm = LLM(**llm_kwargs)
+
+        logger.info(f"Initialized RAG Crew with model: {self.model_name}")
 
     def _create_search_tool(self):
         """Creates a tool instance that allows agents to access the retriever."""

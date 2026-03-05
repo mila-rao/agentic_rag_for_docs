@@ -10,6 +10,16 @@ from document_processing.processor import DocumentProcessor
 from vector_store.chroma_store import ChromaVectorStore
 from retrieval.hybrid import HybridRetriever
 from agents.crew import RAGCrew
+from config.config import (
+    OPENAI_SETTINGS,
+    DOCUMENT_SETTINGS,
+    VECTOR_STORE_SETTINGS,
+    RETRIEVAL_SETTINGS,
+    UI_SETTINGS,
+    DATA_DIR,
+    CHROMA_DIR,
+    UPLOAD_DIR
+)
 
 load_environment()
 
@@ -18,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 # Set page config
 st.set_page_config(
-    page_title="Company Knowledge Base",
-    page_icon="📚",
+    page_title=UI_SETTINGS["page_title"],
+    page_icon=UI_SETTINGS["page_icon"],
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -37,13 +47,12 @@ if "processing_docs" not in st.session_state:
 def get_embedding_function_for_app():
     """Get the embedding function for the app."""
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        st.error("OpenAI API key not found. Please set it in your .env file.")
+    if not OPENAI_SETTINGS["api_key"]:
+        st.error("OpenAI API key not found. Please set OPENAI_API_KEY in your .env file.")
         st.stop()
 
     try:
-        return get_embedding_function(api_key, max_retries=3)
+        return get_embedding_function(OPENAI_SETTINGS["api_key"], max_retries=3)
     except Exception as e:
         st.error(f"Error initializing embedding function: {str(e)}")
         st.warning("Using fallback embedding function. Search results will not be optimal.")
@@ -52,41 +61,38 @@ def get_embedding_function_for_app():
 
 def initialize_components():
     """Initialize all RAG system components."""
-    # Directory setup
-    data_dir = Path("./data")
-    data_dir.mkdir(exist_ok=True)
+    # Ensure directories exist
+    DATA_DIR.mkdir(exist_ok=True)
+    UPLOAD_DIR.mkdir(exist_ok=True)
 
-    upload_dir = data_dir / "uploads"
-    upload_dir.mkdir(exist_ok=True)
-
-    # Get OpenAI API key
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        st.error("OpenAI API key not found. Please check your .env file.")
+    # Check for OpenAI API key
+    if not OPENAI_SETTINGS["api_key"]:
+        st.error("OpenAI API key not found. Please set OPENAI_API_KEY in your .env file.")
         st.stop()
 
     # Set up components
-    doc_processor = DocumentProcessor(chunk_size=512, chunk_overlap=50)
+    doc_processor = DocumentProcessor(
+        chunk_size=DOCUMENT_SETTINGS["chunk_size"]
+    )
 
     embedding_function = get_embedding_function_for_app()
 
     vector_store = ChromaVectorStore(
-        persist_directory="./chroma_db",
-        collection_name="company_docs",
+        persist_directory=str(CHROMA_DIR),
+        collection_name=VECTOR_STORE_SETTINGS["collection_name"],
         embedding_function=embedding_function
     )
 
     retriever = HybridRetriever(
         vector_store=vector_store,
         embedding_function=embedding_function,
-        keyword_weight=0.5,
-        semantic_weight=0.5
+        keyword_weight=RETRIEVAL_SETTINGS["keyword_weight"],
+        semantic_weight=RETRIEVAL_SETTINGS["semantic_weight"]
     )
 
+    # RAGCrew now uses OPENAI_SETTINGS defaults
     rag_crew = RAGCrew(
         retriever=retriever,
-        llm_api_key=api_key,
-        model_name="o3-mini",
         verbose=False
     )
 
@@ -95,7 +101,7 @@ def initialize_components():
         "vector_store": vector_store,
         "retriever": retriever,
         "rag_crew": rag_crew,
-        "upload_dir": upload_dir
+        "upload_dir": UPLOAD_DIR
     }
 
 

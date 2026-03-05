@@ -66,3 +66,6 @@ data/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Personal architecture notes
+REVISED_ARCHITECTURE.md

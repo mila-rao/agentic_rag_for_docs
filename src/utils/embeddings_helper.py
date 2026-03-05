@@ -5,6 +5,8 @@ from typing import List, Optional, Union
 import numpy as np
 import openai
 
+from config.config import OPENAI_SETTINGS, EMBEDDING_SETTINGS
+
 logger = logging.getLogger(__name__)
 
 
@@ -12,7 +14,7 @@ def get_embedding_function(api_key: Optional[str] = None, max_retries: int = 3, 
     """Get OpenAI embedding function with robust error handling.
 
     Args:
-        api_key: OpenAI API key (will use environment variable if None)
+        api_key: OpenAI API key (defaults to OPENAI_SETTINGS)
         max_retries: Maximum number of retries for API calls
         retry_delay: Delay between retries in seconds
 
@@ -20,11 +22,12 @@ def get_embedding_function(api_key: Optional[str] = None, max_retries: int = 3, 
         Function that generates embeddings
     """
 
-    api_key = api_key or os.getenv('OPENAI_API_KEY')
+    api_key = api_key or OPENAI_SETTINGS["api_key"]
     if not api_key:
-        raise ValueError("OpenAI API key is required")
+        raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY in .env file.")
 
-    embedding_model = os.getenv('EMBEDDING_MODEL', 'text-embedding-3-small')
+    embedding_model = OPENAI_SETTINGS["embedding_model"]
+    embedding_dimensions = EMBEDDING_SETTINGS["dimensions"]
 
     client = openai.OpenAI(api_key=api_key)
 
@@ -56,7 +59,7 @@ def get_embedding_function(api_key: Optional[str] = None, max_retries: int = 3, 
         # If all texts are empty, return zero embeddings
         if not non_empty_texts:
             logger.warning("All texts are empty")
-            return [[0.0] * 1536 for _ in texts]
+            return [[0.0] * embedding_dimensions for _ in texts]
 
         # Check cache for existing embeddings to avoid redundant API calls
         cache_hits = []
@@ -83,7 +86,7 @@ def get_embedding_function(api_key: Optional[str] = None, max_retries: int = 3, 
             empty_idx = 0
             for i in range(len(texts)):
                 if i in empty_indices:
-                    full_embeddings.append([0.0] * 1536)
+                    full_embeddings.append([0.0] * embedding_dimensions)
                 else:
                     full_embeddings.append(embeddings[empty_idx])
                     empty_idx += 1
@@ -124,7 +127,7 @@ def get_embedding_function(api_key: Optional[str] = None, max_retries: int = 3, 
                 non_empty_idx = 0
                 for i in range(len(texts)):
                     if i in empty_indices:
-                        full_embeddings.append([0.0] * 1536)
+                        full_embeddings.append([0.0] * embedding_dimensions)
                     else:
                         full_embeddings.append(embeddings[non_empty_idx])
                         non_empty_idx += 1
@@ -137,7 +140,7 @@ def get_embedding_function(api_key: Optional[str] = None, max_retries: int = 3, 
                 # If this was the last attempt, return zero embeddings
                 if attempt == max_retries - 1:
                     logger.error("All embedding attempts failed, returning zero embeddings")
-                    return [[0.0] * 1536 for _ in texts]
+                    return [[0.0] * embedding_dimensions for _ in texts]
 
                 # Otherwise wait before retrying
                 time.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
@@ -157,6 +160,8 @@ def fallback_embedding_function(texts: Union[str, List[str]]) -> List[List[float
     Returns:
         List of "fake" embedding vectors
     """
+    dims = EMBEDDING_SETTINGS["dimensions"]
+
     if isinstance(texts, str):
         texts = [texts]
 
@@ -164,12 +169,12 @@ def fallback_embedding_function(texts: Union[str, List[str]]) -> List[List[float
     for text in texts:
         if not text or not text.strip():
             # Empty text gets zero embedding
-            embeddings.append([0.0] * 1536)
+            embeddings.append([0.0] * dims)
             continue
 
         # Create a deterministic but simple vector based on the text
         np.random.seed(hash(text) % 2 ** 32)
-        embedding = list(np.random.normal(0, 0.1, 1536))
+        embedding = list(np.random.normal(0, 0.1, dims))
 
         # Normalize
         norm = np.linalg.norm(embedding)

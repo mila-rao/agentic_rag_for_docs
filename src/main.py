@@ -8,7 +8,8 @@ from config.config import (
     ROOT_DIR,
     DATA_DIR,
     CHROMA_DIR,
-    UPLOAD_DIR
+    UPLOAD_DIR,
+    OPENAI_SETTINGS
 )
 
 # Configure logging
@@ -34,9 +35,8 @@ def setup_environment():
 
 
     # Check for OpenAI API key
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        logger.error("OpenAI API key not found in environment variables.")
+    if not OPENAI_SETTINGS["api_key"]:
+        logger.error("OpenAI API key not found. Set OPENAI_API_KEY in .env file.")
         return False
 
     # Verify directories
@@ -58,7 +58,7 @@ def run_document_processor(args):
     from config.config import DOCUMENT_SETTINGS, VECTOR_STORE_SETTINGS
 
     # Setup OpenAI API
-    openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    openai_client = openai.OpenAI(api_key=OPENAI_SETTINGS["api_key"])
 
     # Create embedding function
     def embedding_function(texts):
@@ -66,7 +66,7 @@ def run_document_processor(args):
             texts = [texts]
 
         response = openai_client.embeddings.create(
-            model="text-embedding-3-small",
+            model=OPENAI_SETTINGS["embedding_model"],
             input=texts
         )
         return [item.embedding for item in response.data]
@@ -123,7 +123,7 @@ def run_streamlit():
     try:
         subprocess.run([
             sys.executable, "-m", "streamlit", "run",
-            str(streamlit_path), "--server.port=8501", "--server.address=0.0.0.0"
+            str(streamlit_path), "--server.port=8501", "--server.address=127.0.0.1"
         ])
     except Exception as e:
         logger.error(f"Error running Streamlit: {str(e)}")
@@ -136,10 +136,10 @@ def test_retrieval(args):
 
     from retrieval.hybrid import HybridRetriever
     from vector_store.chroma_store import ChromaVectorStore
-    from config.config import VECTOR_STORE_SETTINGS, RETRIEVAL_SETTINGS
+    from config.config import VECTOR_STORE_SETTINGS, RETRIEVAL_SETTINGS, OPENAI_SETTINGS
 
     # Setup OpenAI API
-    openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    openai_client = openai.OpenAI(api_key=OPENAI_SETTINGS["api_key"])
 
     # Create embedding function
     def embedding_function(texts):
@@ -147,7 +147,7 @@ def test_retrieval(args):
             texts = [texts]
 
         response = openai_client.embeddings.create(
-            model="text-embedding-3-small",
+            model=OPENAI_SETTINGS["embedding_model"],
             input=texts
         )
         return [item.embedding for item in response.data]
