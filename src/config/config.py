@@ -62,7 +62,9 @@ RETRIEVAL_SETTINGS = {
     "keyword_weight": 0.5,
     "semantic_weight": 0.5,
     "default_top_k": 5,
-    "rerank_enabled": False
+    # Reranker settings - cross-encoder for improved relevance
+    "rerank_enabled": os.getenv('RERANK_ENABLED', 'false').lower() == 'true',
+    "rerank_model": os.getenv('RERANK_MODEL', 'cross-encoder/ms-marco-MiniLM-L-6-v2'),
 }
 
 # Agent settings (references OPENAI_SETTINGS)
