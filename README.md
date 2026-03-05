@@ -6,10 +6,12 @@ An intelligent document search and question answering system that uses advanced 
 
 - **Document Processing:** Process various document types (PDF, Word, Excel, CSV, Text, etc.)
 - **Semantic Chunking:** Intelligent document chunking that preserves context using Chonkie
-- **Hybrid Search:** Combines keyword (BM25) and semantic vector search for better results
+- **Hybrid Search:** Combines keyword (BM25) and semantic vector search using Reciprocal Rank Fusion (RRF)
+- **Cross-Encoder Reranking:** Optional second-stage reranking for improved relevance (runs locally, no API cost)
 - **Agent-Based Reasoning:** Uses CrewAI to coordinate multiple specialized agents for complex queries
 - **Dual Interface:** Supports both keyword search and natural language questions
 - **Streamlit UI:** User-friendly interface for document upload and searching
+- **Centralized Configuration:** All settings configurable via environment variables
 
 ## Architecture
 
@@ -26,8 +28,9 @@ The system consists of the following components:
 
 3. **Retrieval System**
    - BM25 keyword search
-   - Semantic vector search
-   - Hybrid ranking algorithm
+   - Semantic vector search (OpenAI embeddings)
+   - Reciprocal Rank Fusion (RRF) for hybrid ranking
+   - Optional cross-encoder reranking for improved precision
 
 4. **Agentic Layer**
    - Query planning
@@ -48,23 +51,25 @@ The system consists of the following components:
    cd agentic_rag_for_docs
    ```
 
-2. Set up a virtual environment:
+2. Install dependencies using PDM:
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   # Install PDM if you don't have it
+   pip install pdm
+
+   # Install project dependencies
+   pdm install
    ```
 
-3. Install requirements:
+3. Configure environment variables:
    ```bash
-   pip install -r requirements.txt
+   # Copy the example env file
+   cp .env.example .env
+
+   # Edit .env and set your OpenAI API key
+   OPENAI_API_KEY=your-api-key-here
    ```
 
-4. Set your OpenAI API key:
-   ```bash
-   export OPENAI_API_KEY="your-api-key"
-   # On Windows: set OPENAI_API_KEY=your-api-key
-   ```
-   Or add them to a .env file
+   See `.env.example` for all available configuration options.
 
 ## Usage
 
@@ -112,16 +117,32 @@ This implementation includes several optimizations:
 
 - **Caching:** Document embeddings and retrieval results are cached
 - **Async processing:** Background processing for document ingestion
-- **Hybrid retrieval:** Combines multiple search methods for better accuracy
+- **RRF Hybrid Retrieval:** Reciprocal Rank Fusion combines BM25 and semantic search by rank position, avoiding score calibration issues
+- **Cross-Encoder Reranking:** Optional second-stage reranker improves top-k precision (~50ms latency for 20 docs)
 - **Query classification:** Automatically routes to the appropriate search strategy
+- **Lazy model loading:** Reranker model loads on first use, not at startup
+
+## Configuration
+
+Key settings in `.env`:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API key (required) | - |
+| `OPENAI_EMBEDDING_MODEL` | Embedding model | `text-embedding-3-small` |
+| `OPENAI_CHAT_MODEL` | Chat model for agents | `o3-mini` |
+| `RERANK_ENABLED` | Enable cross-encoder reranking | `false` |
+| `RERANK_MODEL` | Reranker model | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
+
+See `.env.example` for the complete list.
 
 ## Future Enhancements
 
-- Reranking with a more sophisticated model
 - Integration with web sources
 - Multi-user support with permissions
-- More sophisticated agent workflows
-- Performance optimizations for larger document collections
+- Simplified agent workflows for cost optimization
+- Parent-child document chunking for context expansion
+- Query expansion and reformulation
 
 ## Contributing
 
