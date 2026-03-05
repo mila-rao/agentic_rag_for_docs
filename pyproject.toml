@@ -35,7 +35,8 @@ dependencies = [
     "numpy<2",
     "pi-heif>0.20.0",
     "pymupdf>1.23.3",
-    "torchvision==0.16.0"
+    "torchvision==0.16.0",
+    "sentence-transformers>=2.2.0"
 ]
 
 [project.optional-dependencies]

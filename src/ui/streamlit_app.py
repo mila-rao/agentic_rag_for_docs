@@ -77,6 +77,15 @@ def initialize_components():
 
     embedding_function = get_embedding_function_for_app()
 
+    # Setup reranker if enabled
+    reranker_function = None
+    if RETRIEVAL_SETTINGS["rerank_enabled"]:
+        from retrieval.reranker import create_reranker_function
+        logger.info(f"Initializing reranker with model: {RETRIEVAL_SETTINGS['rerank_model']}")
+        reranker_function = create_reranker_function(
+            model_name=RETRIEVAL_SETTINGS["rerank_model"]
+        )
+
     vector_store = ChromaVectorStore(
         persist_directory=str(CHROMA_DIR),
         collection_name=VECTOR_STORE_SETTINGS["collection_name"],
@@ -86,6 +95,7 @@ def initialize_components():
     retriever = HybridRetriever(
         vector_store=vector_store,
         embedding_function=embedding_function,
+        reranker_function=reranker_function,
         keyword_weight=RETRIEVAL_SETTINGS["keyword_weight"],
         semantic_weight=RETRIEVAL_SETTINGS["semantic_weight"]
     )
