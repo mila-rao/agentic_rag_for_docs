@@ -52,6 +52,23 @@ For complex questions, the system uses a multi-agent pipeline:
 
 Simple keyword queries bypass the agents for faster response.
 
+### Vector Storage
+
+Documents are stored in **Chroma DB**, a persistent vector database:
+
+- **Embeddings:** Generated using OpenAI's embedding models (default: `text-embedding-3-small`)
+- **Persistence:** Stored locally in `./chroma_db/` - survives restarts
+- **Metadata:** Each chunk stores source file, page number, chunk index for citation
+- **Distance metric:** Cosine similarity for semantic matching
+
+The BM25 index is built in-memory from the same documents for keyword search.
+
+```
+Document → Chunking → Embeddings → Chroma DB
+                          ↓
+                    BM25 Index (in-memory)
+```
+
 ## Installation
 
 1. Clone the repository:
