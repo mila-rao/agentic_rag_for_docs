@@ -76,6 +76,24 @@ Short keyword queries (<=3 words) bypass agents via fast path.
 - Polars for tabular data
 - Streamlit for UI
 
+## Package Management
+
+This project uses **PDM** (Python Dependency Manager). Dependencies are defined in `pyproject.toml`.
+
+```bash
+# Install dependencies
+pdm install
+
+# Add a new dependency
+pdm add package-name
+
+# Update lock file
+pdm lock
+
+# Run commands in PDM environment
+pdm run python src/main.py test "query"
+```
+
 ## Python Version
 
 Requires Python 3.10-3.12 (`requires-python = "<3.13,>=3.10"`)
