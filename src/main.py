@@ -123,7 +123,7 @@ def run_streamlit():
     try:
         subprocess.run([
             sys.executable, "-m", "streamlit", "run",
-            str(streamlit_path), "--server.port=8501", "--server.address=0.0.0.0"
+            str(streamlit_path), "--server.port=8501", "--server.address=127.0.0.1"
         ])
     except Exception as e:
         logger.error(f"Error running Streamlit: {str(e)}")
