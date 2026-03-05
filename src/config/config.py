@@ -11,6 +11,34 @@ DATA_DIR = Path(os.getenv('DATA_DIR', './data'))
 CHROMA_DIR = Path(os.getenv('VECTOR_STORE_DIR', './chroma_db'))
 UPLOAD_DIR = DATA_DIR / "uploads"
 
+# =============================================================================
+# OpenAI Settings - Single source of truth for all OpenAI configuration
+# =============================================================================
+def _parse_optional_float(env_var: str, default: float = None):
+    """Parse optional float from env var. Returns None if empty/unset."""
+    val = os.getenv(env_var, '')
+    if val.strip() == '':
+        return default
+    return float(val)
+
+def _parse_optional_int(env_var: str, default: int = None):
+    """Parse optional int from env var. Returns None if empty/unset."""
+    val = os.getenv(env_var, '')
+    if val.strip() == '':
+        return default
+    return int(val)
+
+OPENAI_SETTINGS = {
+    "api_key": os.getenv('OPENAI_API_KEY'),
+    "api_base": os.getenv('OPENAI_API_BASE'),  # Optional: for Azure or custom endpoints
+    "embedding_model": os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+    "chat_model": os.getenv('OPENAI_CHAT_MODEL', 'o3-mini'),
+    # Temperature: set to empty string or omit for reasoning models (o1, o3) that don't support it
+    "temperature": _parse_optional_float('OPENAI_TEMPERATURE', 0.3),
+    # Max tokens: set to empty string or omit to use model default
+    "max_tokens": _parse_optional_int('OPENAI_MAX_TOKENS', 1000),
+}
+
 # Document processing settings
 DOCUMENT_SETTINGS = {
     "chunk_size": int(os.getenv('CHUNK_SIZE', 512)),
@@ -23,10 +51,10 @@ VECTOR_STORE_SETTINGS = {
     "distance_function": "cosine"
 }
 
-# Embedding settings
+# Embedding settings (references OPENAI_SETTINGS)
 EMBEDDING_SETTINGS = {
-    "model_name": os.getenv('EMBEDDING_MODEL', 'text-embedding-3-small'),
-    "dimensions": 1536
+    "model_name": OPENAI_SETTINGS["embedding_model"],
+    "dimensions": int(os.getenv('OPENAI_EMBEDDING_DIMENSIONS', '1536'))
 }
 
 # Retrieval settings
@@ -37,12 +65,12 @@ RETRIEVAL_SETTINGS = {
     "rerank_enabled": False
 }
 
-# Agent settings
+# Agent settings (references OPENAI_SETTINGS)
 AGENT_SETTINGS = {
-    "model_name": os.getenv('MODEL_NAME', 'o3-mini'),
+    "model_name": OPENAI_SETTINGS["chat_model"],
     "verbose": False,
-    "temperature": 0.3,
-    "max_tokens": 1000
+    "temperature": OPENAI_SETTINGS["temperature"],
+    "max_tokens": OPENAI_SETTINGS["max_tokens"]
 }
 
 # UI settings
