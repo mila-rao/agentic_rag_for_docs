@@ -42,6 +42,8 @@ class RAGCrew:
         }
         if OPENAI_SETTINGS["temperature"] is not None:
             llm_kwargs["temperature"] = OPENAI_SETTINGS["temperature"]
+        if OPENAI_SETTINGS["max_tokens"] is not None:
+            llm_kwargs["max_tokens"] = OPENAI_SETTINGS["max_tokens"]
 
         self.llm = LLM(**llm_kwargs)
 
@@ -100,11 +102,13 @@ class RAGCrew:
         # 3. Information Synthesizer Agent
         synthesizer = Agent(
             role="Information Synthesizer",
-            goal="Create coherent, accurate responses by combining retrieved information.",
+            goal="Create comprehensive, well-formatted responses by combining retrieved information.",
             backstory="""You excel at understanding context and synthesizing information
             from multiple sources. You can identify connections between different pieces
-            of information and organize them into a coherent narrative that directly
-            addresses the user's query.""",
+            of information and organize them into a coherent, detailed narrative that
+            thoroughly addresses the user's query. You use clear markdown formatting
+            with headers, bullet points, and emphasis to make responses easy to read.
+            You always provide comprehensive answers, not brief summaries.""",
             verbose=self.verbose,
             llm=self.llm,
             allow_delegation=True
@@ -190,21 +194,26 @@ class RAGCrew:
         # 3. Information Synthesis Task
         synthesis_task = Task(
             description="""
-            Using the retrieved information:
+            Using the retrieved information, create a COMPREHENSIVE and DETAILED response:
             1. Integrate information from all relevant sources
-            2. Organize information logically to address the query
+            2. Organize information logically with clear structure using markdown:
+               - Use ## headers for main sections
+               - Use bullet points or numbered lists for key points
+               - Use **bold** for important terms
+               - Include specific details, examples, and context from the documents
             3. Identify and resolve conflicts or contradictions
             4. Ensure all assertions are supported by the retrieved information
             5. Maintain proper attribution to sources
-            6. Use clear, concise language appropriate for the user's query
+            6. Be thorough - do NOT give brief or superficial answers
+            7. If the question asks for explanation, provide full context and background
 
-            Output a comprehensive response that directly addresses the user's query.
+            Output a comprehensive, well-formatted response that thoroughly addresses the user's query.
             """,
             agent=synthesizer,
             expected_output="""
-            A comprehensive answer with the following structure:
+            A comprehensive, well-formatted answer with the following structure:
             {
-                "answer": "The complete synthesized answer",
+                "answer": "A detailed, well-formatted answer using markdown. Include headers, bullet points, and thorough explanations. Minimum 200-300 words for substantive questions.",
                 "sources": ["list of sources used"],
                 "confidence": "high/medium/low",
                 "gaps": "any identified information gaps"
@@ -220,10 +229,12 @@ class RAGCrew:
             2. Check for logical consistency and coherence
             3. Identify any unsupported assertions
             4. Ensure the response directly addresses the user's query
-            5. Check for completeness and clarity
-            6. Suggest improvements or corrections
+            5. Check for completeness - if the answer is too brief, EXPAND it
+            6. Ensure proper markdown formatting is used (headers, bullets, bold)
+            7. The final answer should be comprehensive and well-structured
 
-            Output your critique and a revised response if needed.
+            Output your critique and the final polished response.
+            IMPORTANT: The final_answer must be properly formatted with markdown and be comprehensive.
             """,
             agent=critic,
             expected_output="""
@@ -236,7 +247,7 @@ class RAGCrew:
                     "clarity": "assessment",
                     "issues": ["list of issues"] or []
                 },
-                "final_answer": "The revised answer",
+                "final_answer": "The complete, well-formatted answer using markdown headers (##), bullet points, and **bold** for emphasis. This should be comprehensive and detailed.",
                 "sources": ["list of sources used"]
             }
             """

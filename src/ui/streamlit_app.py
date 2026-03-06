@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import time
+import json
 from pathlib import Path
 import logging
 
@@ -225,14 +226,30 @@ def display_qa_results(results, query):
         st.info("No answer generated. Try rephrasing your question.")
         return
 
-    # Display the answer
-    st.markdown(results["answer"])
+    # Display the answer in a nicely formatted container
+    answer_text = results["answer"]
+
+    # Clean up any JSON artifacts that might have leaked through
+    if answer_text.startswith("{") and "final_answer" in answer_text:
+        try:
+            import json
+            parsed = json.loads(answer_text)
+            answer_text = parsed.get("final_answer", answer_text)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Display in a container with proper styling
+    st.markdown("---")
+    st.markdown(answer_text)
+    st.markdown("---")
 
     # Display sources if available
     if results.get("sources"):
-        with st.expander("Sources"):
+        with st.expander("📚 Sources", expanded=True):
             for i, source in enumerate(results["sources"]):
-                st.markdown(f"{i + 1}. {source}")
+                # Extract just the filename from the path
+                source_name = source.split("/")[-1] if "/" in source else source
+                st.markdown(f"**{i + 1}.** `{source_name}`")
 
     # Add to search history
     if query not in [item["query"] for item in st.session_state.search_history]:
