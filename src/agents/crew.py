@@ -59,7 +59,7 @@ class RAGCrew:
                 filters: Optional metadata filters as a JSON string.
                 top_k: Number of results to return.
             """
-            return self._agent_retrieve_documents(query, filters, top_k)
+            return self._agent_retrieve_documents(query=query, filters=filters, top_k=top_k)
         
         return search_documents
 
@@ -258,9 +258,9 @@ class RAGCrew:
             Dict containing the final response and supporting information
         """
         # Fast path for simple keyword searches
-        if len(query.split()) <= 3 and hasattr(self.retriever, 'is_keyword_search') and self.retriever.is_keyword_search(query):
+        if len(query.split()) <= 3 and hasattr(self.retriever, 'is_keyword_search') and self.retriever.is_keyword_search(query=query):
             logger.info(f"Using fast path for keyword search: {query}")
-            return self._process_keyword_search(query, filter_dict)
+            return self._process_keyword_search(query=query, filter_dict=filter_dict)
 
         # Set up the agents and tasks
         agents, tasks = self.setup_agents()
@@ -284,7 +284,7 @@ class RAGCrew:
             result = crew.kickoff(inputs=inputs)
 
             # Process final result
-            return self._process_crew_result(result, query)
+            return self._process_crew_result(result=result, query=query)
 
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}", exc_info=True)
@@ -315,7 +315,7 @@ class RAGCrew:
                     logger.warning(f"Invalid filter JSON: {filters}")
 
             # Retrieve documents
-            texts, metadatas, scores = self.retriever.retrieve(query, filter_dict, top_k)
+            texts, metadatas, scores = self.retriever.retrieve(query=query, filter_dict=filter_dict, top_k=top_k)
 
             # Format results
             results = []
@@ -346,8 +346,8 @@ class RAGCrew:
         """
         # Retrieve documents
         texts, metadatas, scores = self.retriever.retrieve(
-            query,
-            filter_dict,
+            query=query,
+            filter_dict=filter_dict,
             top_k=10,
             force_mode="keyword"
         )

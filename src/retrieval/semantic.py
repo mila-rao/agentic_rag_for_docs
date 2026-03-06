@@ -87,7 +87,7 @@ class SemanticRetriever:
         results = []
 
         for query in queries:
-            result = self.search(query, filter_dict, top_k)
+            result = self.search(query=query, filter_dict=filter_dict, top_k=top_k)
             results.append(result)
 
         return results

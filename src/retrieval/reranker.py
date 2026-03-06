@@ -49,7 +49,7 @@ class CrossEncoderReranker:
     def _ensure_model_loaded(self):
         """Ensure the model is loaded (lazy loading)."""
         if self._model is None:
-            self._model = _get_cross_encoder(self.model_name)
+            self._model = _get_cross_encoder(model_name=self.model_name)
 
     def rerank(
         self,
@@ -153,6 +153,6 @@ def create_reranker_function(
     reranker = CrossEncoderReranker(model_name=model_name, top_k=top_k)
 
     def reranker_function(query: str, documents: List[str]) -> List[int]:
-        return reranker.rerank(query, documents)
+        return reranker.rerank(query=query, documents=documents)
 
     return reranker_function

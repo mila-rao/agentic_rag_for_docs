@@ -61,7 +61,7 @@ def process_pdf(file_path: Path, base_metadata: Dict[str, Any]) -> Tuple[List[st
             # Try to extract structured content if possible
             try:
                 # Extract tables if any (simple heuristic approach)
-                tables = extract_tables_from_page(page)
+                tables = extract_tables_from_page(page=page)
 
                 # Add tables as separate chunks if found
                 for i, table_text in enumerate(tables):

@@ -22,6 +22,7 @@ class DocumentProcessor:
         """
         self.chunker = ChonkieChunker(
             chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
         )
 
     def process_file(self, file_path: str) -> Tuple[List[str], List[Dict[str, Any]]]:
@@ -40,7 +41,7 @@ class DocumentProcessor:
             raise FileNotFoundError(f"File not found: {file_path}")
 
         # Extract base metadata from file
-        base_metadata = self._extract_base_metadata(file_path)
+        base_metadata = self._extract_base_metadata(file_path=file_path)
 
         # Process based on file type
         file_ext = file_path.suffix.lower()
@@ -48,10 +49,10 @@ class DocumentProcessor:
         if file_ext in ['.csv', '.xlsx', '.xls']:
             # Handle tabular data separately
             from document_processing.tabular import process_tabular_file
-            chunks, metadata_list = process_tabular_file(file_path, base_metadata)
+            chunks, metadata_list = process_tabular_file(file_path=file_path, base_metadata=base_metadata)
         elif file_ext == '.pdf':
             # Use our custom PDF processor that doesn't require Poppler
-            chunks, metadata_list = process_pdf(file_path, base_metadata)
+            chunks, metadata_list = process_pdf(file_path=file_path, base_metadata=base_metadata)
         else:
             # Use Unstructured for all other document types
             try:
@@ -62,7 +63,7 @@ class DocumentProcessor:
                 texts = [str(element) for element in elements]
 
                 # Process with Chonkie for semantic chunking
-                chunks = self.chunker.create_chunks(texts)
+                chunks = self.chunker.create_chunks(texts=texts)
 
                 # Create metadata for each chunk
                 metadata_list = [
@@ -104,7 +105,7 @@ class DocumentProcessor:
             if file_path.is_file() and file_path.suffix.lower() in supported_extensions:
                 logger.info(f"Processing file: {file_path}")
                 try:
-                    chunks, metadata_list = self.process_file(str(file_path))
+                    chunks, metadata_list = self.process_file(file_path=str(file_path))
                     all_chunks.extend(chunks)
                     all_metadata.extend(metadata_list)
                 except Exception as e:

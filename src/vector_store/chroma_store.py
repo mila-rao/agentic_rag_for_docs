@@ -51,6 +51,59 @@ class ChromaVectorStore:
 
         logger.info(f"Initialized Chroma vector store with collection '{collection_name}'")
 
+    # Valid metadata fields that can be used in filters
+    VALID_FILTER_FIELDS = {
+        "source", "filename", "file_type", "file_size",
+        "creation_date", "modification_date", "chunk_id",
+        "page_number", "section_header", "total_chunks"
+    }
+
+    def _sanitize_filter(self, filter_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Sanitize and validate a filter dictionary for ChromaDB.
+
+        ChromaDB where clauses only accept known metadata fields.
+        Invalid fields are dropped with a warning.
+
+        Args:
+            filter_dict: Raw filter dictionary
+
+        Returns:
+            Sanitized filter dict or None if empty/invalid
+        """
+        if not filter_dict:
+            return None
+
+        # If it's already a ChromaDB operator query ($and, $or), validate recursively
+        if "$and" in filter_dict or "$or" in filter_dict:
+            return filter_dict
+
+        # Filter to only valid fields
+        sanitized = {}
+        dropped_fields = []
+
+        for key, value in filter_dict.items():
+            if key.startswith("$"):
+                # ChromaDB operator, keep as-is
+                sanitized[key] = value
+            elif key in self.VALID_FILTER_FIELDS:
+                sanitized[key] = value
+            else:
+                dropped_fields.append(key)
+
+        if dropped_fields:
+            logger.warning(f"Dropped invalid filter fields: {dropped_fields}")
+
+        if not sanitized:
+            return None
+
+        # ChromaDB requires $and for multiple field conditions
+        if len(sanitized) > 1:
+            # Convert {"field1": val1, "field2": val2} to {"$and": [{...}, {...}]}
+            conditions = [{k: v} for k, v in sanitized.items()]
+            return {"$and": conditions}
+
+        return sanitized
+
     def add_documents(
             self,
             texts: List[str],
@@ -128,9 +181,10 @@ class ChromaVectorStore:
                 "n_results": top_k,
             }
 
-            # Add filter if provided
-            if filter_dict:
-                query_params["where"] = filter_dict
+            # Add filter if provided (sanitize to prevent invalid filter errors)
+            sanitized_filter = self._sanitize_filter(filter_dict)
+            if sanitized_filter:
+                query_params["where"] = sanitized_filter
 
             # Add includes based on what's needed
             includes = ["documents", "metadatas", "distances"]
@@ -187,9 +241,10 @@ class ChromaVectorStore:
                 "include": ["documents", "metadatas", "distances"]
             }
 
-            # Add filter if provided
-            if filter_dict:
-                query_params["where"] = filter_dict
+            # Add filter if provided (sanitize to prevent invalid filter errors)
+            sanitized_filter = self._sanitize_filter(filter_dict)
+            if sanitized_filter:
+                query_params["where"] = sanitized_filter
 
             # Execute query
             results = self.collection.query(**query_params)
@@ -254,3 +309,116 @@ class ChromaVectorStore:
         except Exception as e:
             logger.error(f"Error counting documents: {str(e)}")
             return 0
+
+    def list_documents(self) -> Dict[str, int]:
+        """List all unique source documents with their chunk counts.
+
+        Returns:
+            Dictionary mapping source filename to number of chunks
+        """
+        try:
+            # Get all documents with metadata
+            results = self.collection.get(include=["metadatas"])
+
+            if not results["metadatas"]:
+                return {}
+
+            # Count chunks per source
+            source_counts: Dict[str, int] = {}
+            for metadata in results["metadatas"]:
+                source = metadata.get("source", "Unknown")
+                # Extract just the filename for display
+                filename = os.path.basename(source) if source != "Unknown" else source
+                source_counts[filename] = source_counts.get(filename, 0) + 1
+
+            return source_counts
+
+        except Exception as e:
+            logger.error(f"Error listing documents: {str(e)}")
+            return {}
+
+    def delete_by_source(self, source_filename: str) -> bool:
+        """Delete all chunks belonging to a specific source document.
+
+        Args:
+            source_filename: The filename (basename) of the source document
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Get all documents with metadata
+            results = self.collection.get(include=["metadatas"])
+
+            if not results["ids"] or not results["metadatas"]:
+                logger.warning("No documents found in collection")
+                return False
+
+            # Find IDs matching the source filename
+            ids_to_delete = []
+            for doc_id, metadata in zip(results["ids"], results["metadatas"]):
+                source = metadata.get("source", "")
+                if os.path.basename(source) == source_filename:
+                    ids_to_delete.append(doc_id)
+
+            if not ids_to_delete:
+                logger.warning(f"No chunks found for source: {source_filename}")
+                return False
+
+            # Delete the matching documents
+            self.collection.delete(ids=ids_to_delete)
+            logger.info(f"Deleted {len(ids_to_delete)} chunks for source: {source_filename}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error deleting by source: {str(e)}")
+            return False
+
+    def clear_collection(self) -> bool:
+        """Delete all documents from the collection.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Get all document IDs
+            results = self.collection.get()
+
+            if not results["ids"]:
+                logger.info("Collection is already empty")
+                return True
+
+            # Delete all documents
+            self.collection.delete(ids=results["ids"])
+            logger.info(f"Cleared collection: deleted {len(results['ids'])} documents")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error clearing collection: {str(e)}")
+            return False
+
+    def document_exists(self, source_filename: str) -> bool:
+        """Check if a document with the given source filename already exists.
+
+        Args:
+            source_filename: The filename (basename) to check
+
+        Returns:
+            True if document exists, False otherwise
+        """
+        try:
+            results = self.collection.get(include=["metadatas"])
+
+            if not results["metadatas"]:
+                return False
+
+            for metadata in results["metadatas"]:
+                source = metadata.get("source", "")
+                if os.path.basename(source) == source_filename:
+                    return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"Error checking document existence: {str(e)}")
+            return False
