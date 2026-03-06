@@ -36,7 +36,7 @@ OPENAI_SETTINGS = {
     # Temperature: set to empty string or omit for reasoning models (o1, o3) that don't support it
     "temperature": _parse_optional_float('OPENAI_TEMPERATURE', 0.3),
     # Max tokens: set to empty string or omit to use model default
-    "max_tokens": _parse_optional_int('OPENAI_MAX_TOKENS', 1000),
+    "max_tokens": _parse_optional_int('OPENAI_MAX_TOKENS', 4000),
 }
 
 # Document processing settings

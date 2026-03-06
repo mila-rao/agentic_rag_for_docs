@@ -220,12 +220,12 @@ class HybridRetriever:
                     doc_text = self.corpus[idx]
 
                     # Get metadata from vector store
-                    _, metadata = self.vector_store.get_document_by_id(doc_id)
+                    _, metadata = self.vector_store.get_document_by_id(doc_id=doc_id)
                     if metadata is None:
                         metadata = {}
 
                     # Apply metadata filter if specified
-                    if filter_dict and not self._matches_filter(metadata, filter_dict):
+                    if filter_dict and not self._matches_filter(metadata=metadata, filter_dict=filter_dict):
                         continue
 
                     # Store with BM25 rank
@@ -295,7 +295,7 @@ class HybridRetriever:
         # 4. Apply reranker if available
         if self.reranker_function and sorted_results:
             rerank_candidates = [r["text"] for r in sorted_results[:expanded_k]]
-            reranked_indices = self.reranker_function(query, rerank_candidates)
+            reranked_indices = self.reranker_function(query=query, documents=rerank_candidates)
             sorted_results = [sorted_results[i] for i in reranked_indices]
 
         # Limit to top_k

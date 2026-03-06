@@ -102,7 +102,7 @@ class KeywordRetriever:
             filtered_indices = []
             for idx in indices:
                 if idx < len(self.metadatas):
-                    if self._matches_filter(self.metadatas[idx], filter_dict):
+                    if self._matches_filter(metadata=self.metadatas[idx], filter_dict=filter_dict):
                         filtered_indices.append(idx)
             indices = filtered_indices
 

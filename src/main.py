@@ -90,7 +90,7 @@ def run_document_processor(args):
         return
 
     logger.info(f"Processing documents in: {input_dir}")
-    chunks, metadatas = processor.process_directory(input_dir)
+    chunks, metadatas = processor.process_directory(dir_path=input_dir)
 
     if not chunks:
         logger.warning("No documents processed.")
@@ -98,11 +98,11 @@ def run_document_processor(args):
 
     # Generate embeddings
     logger.info(f"Generating embeddings for {len(chunks)} chunks...")
-    embeddings = embedding_function(chunks)
+    embeddings = embedding_function(texts=chunks)
 
     # Add to vector store
     logger.info(f"Adding {len(chunks)} chunks to vector store...")
-    vector_store.add_documents(chunks, metadatas, embeddings)
+    vector_store.add_documents(texts=chunks, metadatas=metadatas, embeddings=embeddings)
 
     logger.info(f"Successfully processed {len(chunks)} chunks from directory: {input_dir}")
 
@@ -185,7 +185,7 @@ def test_retrieval(args):
     logger.info(f"Testing retrieval with query: {query}")
 
     # Determine query type
-    is_keyword = retriever.is_keyword_search(query)
+    is_keyword = retriever.is_keyword_search(query=query)
     logger.info(f"Query type: {'Keyword' if is_keyword else 'Semantic'}")
 
     # Retrieve documents
