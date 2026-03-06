@@ -34,11 +34,13 @@ class ChonkieChunker:
                     chunk_size=chunk_size,
                 )
                 logger.info("Initialized SemanticChunker successfully")
-            except (ValueError, ImportError, OSError) as e:
-                logger.warning(
-                    f"Failed to initialize SemanticChunker: {e}. "
-                    "Falling back to simple chunking."
+            except Exception as e:
+                # Log the full error with traceback for debugging
+                logger.error(
+                    f"SEMANTIC CHUNKER INIT FAILED: {type(e).__name__}: {e}",
+                    exc_info=True
                 )
+                logger.warning("Falling back to simple character-based chunking.")
                 self.chonkie = None
 
     def create_chunks(self, texts: List[str]) -> List[str]:

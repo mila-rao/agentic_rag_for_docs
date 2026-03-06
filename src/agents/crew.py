@@ -35,15 +35,24 @@ class RAGCrew:
         self.verbose = verbose
 
         # Initialize the LLM
-        # Build kwargs conditionally - some models (o1, o3) don't support temperature
+        # Build kwargs conditionally - reasoning models (o1, o3) don't support temperature or max_tokens
         llm_kwargs = {
             "api_key": self.llm_api_key,
             "model": self.model_name
         }
-        if OPENAI_SETTINGS["temperature"] is not None:
-            llm_kwargs["temperature"] = OPENAI_SETTINGS["temperature"]
-        if OPENAI_SETTINGS["max_tokens"] is not None:
-            llm_kwargs["max_tokens"] = OPENAI_SETTINGS["max_tokens"]
+
+        # Check if this is a reasoning model (o1, o3) which has different parameter support
+        is_reasoning_model = any(
+            self.model_name.startswith(prefix)
+            for prefix in ["o1", "o3"]
+        )
+
+        if not is_reasoning_model:
+            # Only set temperature and max_tokens for non-reasoning models
+            if OPENAI_SETTINGS["temperature"] is not None:
+                llm_kwargs["temperature"] = OPENAI_SETTINGS["temperature"]
+            if OPENAI_SETTINGS["max_tokens"] is not None:
+                llm_kwargs["max_tokens"] = OPENAI_SETTINGS["max_tokens"]
 
         self.llm = LLM(**llm_kwargs)
 
@@ -300,6 +309,8 @@ class RAGCrew:
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}", exc_info=True)
             return {
+                "type": "question_answer",
+                "query": query,
                 "answer": f"Error processing your query: {str(e)}",
                 "sources": [],
                 "success": False

@@ -441,7 +441,8 @@ def run_streamlit_app():
                         # Use full RAG crew for questions
                         results = rag_crew.process_query(query=query, filter_dict=filter_dict)
 
-                        if results["type"] == "search_results":
+                        result_type = results.get("type", "question_answer")
+                        if result_type == "search_results":
                             display_search_results(results=results, query=query)
                         else:
                             display_qa_results(results=results, query=query)
