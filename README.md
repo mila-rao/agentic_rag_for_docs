@@ -5,12 +5,12 @@ An intelligent document search and question answering system that uses advanced 
 ## Features
 
 - **Document Processing:** Process various document types (PDF, Word, Excel, CSV, Text, etc.)
-- **Semantic Chunking:** Intelligent document chunking that preserves context using Chonkie
+- **Semantic Chunking:** Intelligent document chunking that preserves context using Chonkie (with fallback for Windows)
 - **Hybrid Search with RRF:** Combines keyword (BM25) and semantic vector search using Reciprocal Rank Fusion
 - **Cross-Encoder Reranking:** Optional second-stage reranking for improved relevance (runs locally, no API cost)
 - **Agent-Based Reasoning:** Uses CrewAI to coordinate multiple specialized agents for complex queries
 - **Dual Interface:** Supports both keyword search and natural language questions
-- **Streamlit UI:** User-friendly interface for document upload and searching
+- **Streamlit UI:** User-friendly interface for document upload, searching, and knowledge base management
 
 ## How It Works
 
@@ -129,8 +129,11 @@ All settings are in `.env`. Key options:
 | `OPENAI_EMBEDDING_MODEL` | Embedding model | `text-embedding-3-small` |
 | `OPENAI_CHAT_MODEL` | Chat model for agents | `o3-mini` |
 | `OPENAI_TEMPERATURE` | LLM temperature (leave empty for o1/o3) | `0.3` |
+| `OPENAI_MAX_TOKENS` | Max response tokens (leave empty for o1/o3) | `4000` |
 | `RERANK_ENABLED` | Enable cross-encoder reranking | `false` |
 | `RERANK_MODEL` | Reranker model | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
+
+> **Note:** Reasoning models (o1, o3) don't support `temperature` or `max_tokens` parameters. Leave these empty in `.env` when using o3-mini or similar models.
 
 See `.env.example` for the complete list.
 
