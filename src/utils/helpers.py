@@ -6,9 +6,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from dotenv import load_dotenv
-import openai
 
-from config.config import OPENAI_SETTINGS, EMBEDDING_SETTINGS
+from config.config import OPENAI_SETTINGS, EMBEDDING_SETTINGS, openai_client, SUPPORTED_EXTENSIONS, FILE_TYPE_MAPPINGS
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +36,12 @@ def get_file_extension(file_path: str) -> str:
 
 def is_supported_file_type(file_path: str) -> bool:
     """Check if file type is supported."""
-    from config import SUPPORTED_EXTENSIONS
     ext = Path(file_path).suffix.lower()
     return ext in SUPPORTED_EXTENSIONS
 
 
 def get_file_type_display_name(file_path: str) -> str:
     """Get display name for file type."""
-    from config import FILE_TYPE_MAPPINGS
     ext = get_file_extension(file_path)
     return FILE_TYPE_MAPPINGS.get(ext, f"{ext.upper()} File")
 
@@ -76,7 +73,7 @@ def create_metadata(file_path: str, additional_metadata: Optional[Dict[str, Any]
     metadata = {
         'source': str(file_path),
         'filename': file_path.name,
-        'file_type': get_file_extension(file_path),
+        'file_type': get_file_extension(str(file_path)),
         'file_size': file_path.stat().st_size,
         'creation_date': os.path.getctime(file_path),
         'modification_date': os.path.getmtime(file_path),
@@ -130,15 +127,13 @@ def get_embedding_function(api_key: Optional[str] = None):
 
     embedding_model = OPENAI_SETTINGS["embedding_model"]
 
-    client = openai.OpenAI(api_key=api_key)
-
     def embedding_function(texts):
         """Generate embeddings for input texts."""
         if isinstance(texts, str):
             texts = [texts]
 
         try:
-            response = client.embeddings.create(
+            response = openai_client.embeddings.create(
                 model=embedding_model,
                 input=texts
             )

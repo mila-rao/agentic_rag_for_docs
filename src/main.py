@@ -9,7 +9,8 @@ from config.config import (
     DATA_DIR,
     CHROMA_DIR,
     UPLOAD_DIR,
-    OPENAI_SETTINGS
+    OPENAI_SETTINGS,
+    openai_client
 )
 
 # Configure logging
@@ -58,7 +59,6 @@ def run_document_processor(args):
     from config.config import DOCUMENT_SETTINGS, VECTOR_STORE_SETTINGS
 
     # Setup OpenAI API
-    openai_client = openai.OpenAI(api_key=OPENAI_SETTINGS["api_key"])
 
     # Create embedding function
     def embedding_function(texts):
@@ -137,9 +137,6 @@ def test_retrieval(args):
     from retrieval.hybrid import HybridRetriever
     from vector_store.chroma_store import ChromaVectorStore
     from config.config import VECTOR_STORE_SETTINGS, RETRIEVAL_SETTINGS, OPENAI_SETTINGS
-
-    # Setup OpenAI API
-    openai_client = openai.OpenAI(api_key=OPENAI_SETTINGS["api_key"])
 
     # Create embedding function
     def embedding_function(texts):

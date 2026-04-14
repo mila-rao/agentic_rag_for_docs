@@ -49,13 +49,8 @@ if "kb_refresh_counter" not in st.session_state:
 # Helper functions
 def get_embedding_function_for_app():
     """Get the embedding function for the app."""
-
-    if not OPENAI_SETTINGS["api_key"]:
-        st.error("OpenAI API key not found. Please set OPENAI_API_KEY in your .env file.")
-        st.stop()
-
     try:
-        return get_embedding_function(api_key=OPENAI_SETTINGS["api_key"], max_retries=3)
+        return get_embedding_function(max_retries=3)
     except Exception as e:
         st.error(f"Error initializing embedding function: {str(e)}")
         st.warning("Using fallback embedding function. Search results will not be optimal.")

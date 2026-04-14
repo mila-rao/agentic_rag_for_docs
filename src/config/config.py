@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import openai
 
 # Load environment variables
 load_dotenv()
@@ -10,6 +11,7 @@ ROOT_DIR = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = Path(os.getenv('DATA_DIR', './data'))
 CHROMA_DIR = Path(os.getenv('VECTOR_STORE_DIR', './chroma_db'))
 UPLOAD_DIR = DATA_DIR / "uploads"
+
 
 # =============================================================================
 # OpenAI Settings - Single source of truth for all OpenAI configuration
@@ -21,6 +23,7 @@ def _parse_optional_float(env_var: str, default: float = None):
         return default
     return float(val)
 
+
 def _parse_optional_int(env_var: str, default: int = None):
     """Parse optional int from env var. Returns None if empty/unset."""
     val = os.getenv(env_var, '')
@@ -28,8 +31,10 @@ def _parse_optional_int(env_var: str, default: int = None):
         return default
     return int(val)
 
+
+openai_api_key = os.getenv('OPENAI_API_KEY')
 OPENAI_SETTINGS = {
-    "api_key": os.getenv('OPENAI_API_KEY'),
+    "api_key": openai_api_key,
     "api_base": os.getenv('OPENAI_API_BASE'),  # Optional: for Azure or custom endpoints
     "embedding_model": os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
     "chat_model": os.getenv('OPENAI_CHAT_MODEL', 'o3-mini'),
@@ -38,6 +43,8 @@ OPENAI_SETTINGS = {
     # Max tokens: set to empty string or omit to use model default
     "max_tokens": _parse_optional_int('OPENAI_MAX_TOKENS', 4000),
 }
+openai_base = os.getenv("OPENAI_API_BASE")
+openai_client = openai.OpenAI(api_key=openai_api_key, base_url=openai_base)
 
 # Document processing settings
 DOCUMENT_SETTINGS = {
