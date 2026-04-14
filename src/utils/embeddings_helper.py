@@ -1,16 +1,14 @@
-import os
 import logging
 import time
-from typing import List, Optional, Union
+from typing import List, Union
 import numpy as np
-import openai
 
-from config.config import OPENAI_SETTINGS, EMBEDDING_SETTINGS
+from config.config import OPENAI_SETTINGS, EMBEDDING_SETTINGS, openai_client
 
 logger = logging.getLogger(__name__)
 
 
-def get_embedding_function(api_key: Optional[str] = None, max_retries: int = 3, retry_delay: float = 1.0):
+def get_embedding_function(max_retries: int = 3, retry_delay: float = 1.0):
     """Get OpenAI embedding function with robust error handling.
 
     Args:
@@ -22,14 +20,8 @@ def get_embedding_function(api_key: Optional[str] = None, max_retries: int = 3, 
         Function that generates embeddings
     """
 
-    api_key = api_key or OPENAI_SETTINGS["api_key"]
-    if not api_key:
-        raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY in .env file.")
-
     embedding_model = OPENAI_SETTINGS["embedding_model"]
     embedding_dimensions = EMBEDDING_SETTINGS["dimensions"]
-
-    client = openai.OpenAI(api_key=api_key)
 
     # Cache for previously computed embeddings to avoid duplicate API calls
     embedding_cache = {}
@@ -96,7 +88,7 @@ def get_embedding_function(api_key: Optional[str] = None, max_retries: int = 3, 
         # Attempt API call with retries
         for attempt in range(max_retries):
             try:
-                response = client.embeddings.create(
+                response = openai_client.embeddings.create(
                     model=embedding_model,
                     input=texts_to_embed
                 )
